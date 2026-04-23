@@ -5,18 +5,20 @@ FLAGS_DEBUG = -I/usr/include/eigen3 -isystem /usr/lib/x86_64-linux-gnu/openmpi/i
 ZIP_NAME = Dubkov_SA
 all: a.out
 
-a.out: *.cpp *.h linearsystem/*.cpp linearsystem/*.h
-	mpicxx $(FLAGS) $^ -o a.out
+a.out: *.cpp *.h linearsystem/GaussianMethod/*.cpp linearsystem/IterativeMethod/*.cpp
+	g++ $(FLAGS) $^ -o a.out
 
-unused: *.cpp *.h linearsystem/*.cpp linearsystem/*.h
-	mpicxx $(FLAGS_UNUSED) $^ -o a.out
+unused: *.cpp *.h linearsystem/GaussianMethod/*.cpp linearsystem/IterativeMethod/*.cpp
+	g++ $(FLAGS_UNUSED) $^ -o a.out
 
-debag: *.cpp *.h linearsystem/*.cpp linearsystem/*.h
-	mpicxx $(FLAGS_DEBUG) $^ -o a.out
+debag: *.cpp *.h linearsystem/GaussianMethod/*.cpp linearsystem/IterativeMethod/*.cpp
+	g++ $(FLAGS_DEBUG) $^ -o a.out
 
 zip:
 	zip $(ZIP_NAME).zip *.h *.cpp Makefile 
 
+clean:
+	rm a.out 
 
 test: a.out
 	@echo "Running tests..."
