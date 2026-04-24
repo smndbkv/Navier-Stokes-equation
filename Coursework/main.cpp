@@ -13,42 +13,52 @@ int main(int argc, char **argv)
         printf("Usage: %s nx ny\n", argv[0]);
         return 0;
     }
-    MainSolver Solver(nx, ny);
-    Solver.draw_grid_velocity();
-    Solver.draw_grid_pressure();
+    MainSolver Solver(nx, ny, false);
+    // Solver.init_D_y();
+    //  Solver.draw_grid_velocity();
+    //  Solver.draw_grid_pressure();
 
-    point p = {0.5, 0.5};
-    // G.draw_point(p);
-    edge ed = Solver.linear_search(p);
-    // G.draw_edge(ed);
-    //  printf("%d\n", ed.id);
-    // int k = ed.points[0]->id;
-    // int k = 6;
-    // G.draw_phi(k);
-    // G.draw_phi_x(k);
-    // G.draw_f2();
-    // G.solve_linear_system_f();
-    // G.draw_f_approximate();
-    // printf("redisual_f = %10.3e\n", G.get_r_f());
+    // point p = {0.5, 0.5};
+    // // G.draw_point(p);
+    // edge ed = Solver.linear_search(p);
+    // // G.draw_edge(ed);
+    // //  printf("%d\n", ed.id);
+    // // int k = ed.points[0]->id;
+    // // int k = 6;
+    // // G.draw_phi(k);
+    // // G.draw_phi_x(k);
+    // // G.draw_f2();
+    // // G.solve_linear_system_f();
+    // // G.draw_f_approximate();
+    // // printf("redisual_f = %10.3e\n", G.get_r_f());
 
-    Solver.draw_psi(1);
+    // Solver.draw_psi(1);
 
-    // Solver.draw_u_exact();
+    // // Solver.draw_u_exact();
     t1 = clock();
     Solver.init_matr();
     // Solver.print_matr();
+    bool st = Solver.is_symmetric(1e-15);
+    if (st == false)
+    {
+        printf("Matrix is not symmetric!\n");
+    }
+    // // Solver.print_matr();
     t1 = (clock() - t1) / CLOCKS_PER_SEC;
 
     t2 = clock();
     Solver.solve_linear_system();
     t2 = (clock() - t2) / CLOCKS_PER_SEC;
-    // Solver.draw_u_approximate();
+    // // Solver.draw_u_approximate();
 
     t3 = clock();
-    double r = Solver.get_r_u();
+    double r_u = Solver.get_residual(&MainSolver::u_exact, &MainSolver::u_approximate);
+    double r_w = Solver.get_residual(&MainSolver::w_exact, &MainSolver::w_approximate);
+    double r_p = Solver.get_residual(&MainSolver::p_exact, &MainSolver::p_approximate);
+
     t3 = (clock() - t3) / CLOCKS_PER_SEC;
 
-    printf("redisual_u = %10.3e, t1 = %lf, t2 = %lf, t3 = %lf\n", r, t1, t2, t3);
+    printf("r_u = %10.3e, r_w = %10.3e, r_p = %10.3e, t1 = %lf, t2 = %lf, t3 = %lf\n", r_u, r_w, r_p, t1, t2, t3);
 
     // G.draw_u2();
     // t1 = clock();

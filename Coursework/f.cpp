@@ -1,12 +1,25 @@
 #include "MainSolver.h"
 
-double MainSolver::f(point &p) // правая часть
+double MainSolver::f1(point &p) // правая часть
 {
-    return -f3(p);
+    return f1_test1(p);
 }
-double MainSolver::u_exact(point &p) // точное решение
+double MainSolver::f2(point &p) // правая часть
 {
-    return u3_exact(p);
+    return f2_test1(p);
+}
+
+double MainSolver::u_exact(point &p)
+{
+    return u_test1(p);
+}
+double MainSolver::w_exact(point &p)
+{
+    return w_test1(p);
+}
+double MainSolver::p_exact(point &p)
+{
+    return p_test1(p);
 }
 
 double MainSolver::u0(point &p) // значения на границе
@@ -15,17 +28,44 @@ double MainSolver::u0(point &p) // значения на границе
     return 0;
 }
 
-double MainSolver::f1(point &p)
+double MainSolver::f1_test1(point &p)
+{
+    double x = p.x, y = p.y;
+    return (1 - 2 * x) * y * (1 - y);
+}
+double MainSolver::f2_test1(point &p)
+{
+    double x = p.x, y = p.y;
+    return (1 - 2 * y) * x * (1 - x);
+}
+double MainSolver::u_test1(point &p)
+{
+    (void)p;
+    return 0;
+}
+double MainSolver::w_test1(point &p)
+{
+    (void)p;
+    return 0;
+}
+double MainSolver::p_test1(point &p)
+{
+    double x = p.x, y = p.y;
+
+    return x * (1 - x) * y * (1 - y);
+}
+
+double MainSolver::f1_test(point &p)
 {
     double x = p.x, y = p.y;
     return -2 * (y * (1 - y) + x * (1 - x));
 }
-double MainSolver::f2(point &p)
+double MainSolver::f2_test(point &p)
 {
     double x = p.x, y = p.y;
     return -13 * M_PI * M_PI * sin(2 * M_PI * x) * sin(3 * M_PI * y);
 }
-double MainSolver::f3(point &p)
+double MainSolver::f3_test(point &p)
 {
     double x = p.x, y = p.y;
     return exp(-x) * (2 * M_PI * sin(M_PI * x) * cos(M_PI * y) +

@@ -17,9 +17,9 @@
 class MainSolver
 {
 public:
-    int nx = 0, ny = 0;
-    int nx_pressure = 0, ny_pressure = 0;
-
+    int nx = 0, ny = 0, n = 0;
+    int nx_pressure = 0, ny_pressure = 0, n_pressure_edges = 0;
+    int size = 0;
     point *points = nullptr;
     edge *edges = nullptr;
     grid grid_velocity;
@@ -32,8 +32,6 @@ public:
     int *I = nullptr;
     const int L = 9;
     // Eigen::SparseMatrix<double> A;
-    int n = 0;
-    int n_p = 0;
     double *b = nullptr;
     // Eigen::VectorXd b;
 
@@ -48,17 +46,21 @@ public:
         this->n = nx * ny;
         nx_pressure = nx / 2 + 1;
         ny_pressure = ny / 2 + 1;
+        n_pressure_edges = (nx_pressure - 1) * (ny_pressure - 1);
+        size = (n + n + n_pressure_edges);
 
-        matr = new double[n * n];
-        memset(matr, 0, n * n * sizeof(double));
+        matr = new double[size * size];
+        memset(matr, 0, size * size * sizeof(double));
         A = new double[L + 1];
         I = new int[L + 1];
         // A.resize(n, n);
         // A.reserve(9 * n);
-        b = new double[n];
-        memset(b, 0, n * sizeof(double));
+        b = new double[size];
+        memset(b, 0, size * sizeof(double));
         // b.resize(n);
-        x_u = new double[n];
+        x_u = new double[size];
+        memset(x_u, 0, size * sizeof(double));
+
         x_f = new double[n];
         // x_u.resize(n);
         // x_f.resize(n);
@@ -298,6 +300,8 @@ public:
     //     printf("integral(phi) = %lf\n", integral(&grid::phi, k));
     //     return 0;
     // }
+
+    /// ВАЖНО писать в начале ту функцию у которой носитель меньше, то есть phi, phi_x, phi_y
     double integral_phi_square(int k)
     {
         printf("integral(phi^2) = %lf\n", integral(&MainSolver::phi_kl, k, k));
@@ -315,9 +319,13 @@ public:
     {
         return phi_y(p, k) * phi_y(p, l);
     }
-    double psi_phi_x(point &p, int k, int l)
+    double phi_x_psi(point &p, int k, int l)
     {
-        return psi(p, k) * phi_x(p, l);
+        return phi_x(p, k) * psi(p, l);
+    }
+    double phi_y_psi(point &p, int k, int l)
+    {
+        return phi_y(p, k) * psi(p, l);
     }
     void init_matr()
     {
@@ -332,8 +340,8 @@ public:
             {
                 continue;
             }
-            b[k] = integral(&MainSolver::f_phi_k, k, k);
-
+            b[k] = integral(&MainSolver::f1_phi_k, k, k);
+            b[k + n] = integral(&MainSolver::f2_phi_k, k, k);
             ind_l[0] = k - nx - 1;
             ind_l[1] = k - nx;
             ind_l[2] = k - nx + 1;
@@ -355,8 +363,8 @@ public:
                 {
                     continue;
                 }
-                matr[k * n + ind_l[l]] = integral(&MainSolver::phi_x_kl, k, ind_l[l]) + integral(&MainSolver::phi_y_kl, k, ind_l[l]);
-                printf("%lf ", integral(&MainSolver::psi_phi_x, k, ind_l[l]));
+                matr[k * size + ind_l[l]] = integral(&MainSolver::phi_x_kl, k, ind_l[l]) + integral(&MainSolver::phi_y_kl, k, ind_l[l]);
+                matr[(k + n) * size + ind_l[l] + n] = matr[k * size + ind_l[l]];
             }
         }
         for (int k = 0; k < n; k++)
@@ -364,11 +372,61 @@ public:
             int i = k / nx, j = k % nx;
             if (i == 0 || i == ny - 1 || j == 0 || j == nx - 1)
             {
-                matr[k * n + k] = 1;
+                matr[(k + n) * size + k + n] = matr[k * size + k] = 1;
                 b[k] = u0(points[k]);
             }
         }
+        for (int k = 0; k < n_pressure_edges; k++)
+        {
+            for (int l = 0; l < n; l++)
+            {
+                matr[(k + 2 * n) * size + l] = integral(&MainSolver::phi_x_psi, l, k);
+                matr[(k + 2 * n) * size + l + n] = integral(&MainSolver::phi_y_psi, l, k);
+                matr[l * size + (k + 2 * n)] = -matr[(k + 2 * n) * size + l];
+                matr[(l + n) * size + (k + 2 * n)] = -matr[(k + 2 * n) * size + l + n];
+            }
+        }
     }
+    bool is_symmetric(double eps = EPS)
+    {
+        for (int i = 0; i < size; ++i)
+        {
+            for (int j = i + 1; j < size; ++j)
+            {
+                double a_ij = matr[i * size + j];
+                double a_ji = matr[j * size + i];
+                if (std::fabs(a_ij - a_ji) > eps)
+                {
+                    printf("matr[%d, %d] = %10.3e, matr[%d, %d] = %10.3e\n", i, j, a_ij, j, i, a_ji);
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+    void init_D_x()
+    {
+        for (int k = 0; k < n_pressure_edges; k++)
+        {
+            for (int l = 0; l < n; l++)
+            {
+                printf("%10.3e ", integral(&MainSolver::phi_x_psi, l, k));
+            }
+            printf("\n");
+        }
+    }
+    void init_D_y()
+    {
+        for (int k = 0; k < n_pressure_edges; k++)
+        {
+            for (int l = 0; l < n; l++)
+            {
+                printf("%10.3e ", integral(&MainSolver::phi_y_psi, l, k));
+            }
+            printf("\n");
+        }
+    }
+
     void init_matr_m_f_approximate()
     {
         memset(matr, 0, n * n * sizeof(double));
@@ -377,7 +435,7 @@ public:
         int l;
         for (int k = 0; k < n; k++) // на границе оставляем нули
         {
-            b[k] = integral(&MainSolver::f_phi_k, k, k);
+            b[k] = integral(&MainSolver::f1_phi_k, k, k);
 
             ind_l[0] = k - nx - 1;
             ind_l[1] = k - nx;
@@ -504,24 +562,28 @@ public:
     }
     void print_matr()
     {
-        for (int i = 0; i < n; i++)
+        for (int i = 0; i < size; i++)
         {
-            for (int j = 0; j < n; j++)
+            for (int j = 0; j < size; j++)
             {
-                printf(" %10.3e", matr[i * n + j]);
+                printf(" %10.3e", matr[i * size + j]);
             }
             printf("\n");
         }
     }
 
-    double f_phi_k(point &p, int k, int)
+    double f1_phi_k(point &p, int k, int)
     {
-        return f(p) * phi(p, k);
+        return f1(p) * phi(p, k);
     }
-    double f_approximate_phi_k(point &p, int k, int)
+    double f2_phi_k(point &p, int k, int)
     {
-        return f_approximate(p) * phi(p, k);
+        return f2(p) * phi(p, k);
     }
+    // double f_approximate_phi_k(point &p, int k, int)
+    // {
+    //     return f_approximate(p) * phi(p, k);
+    // }
     void solve_linear_system()
     {
         // init_matr();
@@ -529,7 +591,7 @@ public:
         double *c = new double[m * m], *g = new double[m * m],
                *d = new double[m * m], *f = new double[m * m];
         int *p = new int[(n % m != 0 ? n / m + 1 : n / m)];
-        gauss_method(n, m, matr, b, x_u, c, g, d, f, p);
+        gauss_method(size, m, matr, b, x_u, c, g, d, f, p);
         delete[] c;
         delete[] g;
         delete[] d;
@@ -550,48 +612,29 @@ public:
         delete[] f;
         delete[] p;
     }
-    double f_approximate(point &p, int k = -1, int l = -1)
-    {
-        (void)k, (void)l;
-        double sum = 0;
-        for (int k = 0; k < n; k++)
-        {
-            sum += x_f[k] * phi(p, k);
-        }
-        return sum;
-    }
+    // double f_approximate(point &p, int k = -1, int l = -1)
+    // {
+    //     (void)k, (void)l;
+    //     double sum = 0;
+    //     for (int k = 0; k < n; k++)
+    //     {
+    //         sum += x_f[k] * phi(p, k);
+    //     }
+    //     return sum;
+    // }
     void draw_f1()
     {
-        plot3d(&MainSolver::f1, 0, 1, 60, 0, 1, 60);
+        plot3d(&MainSolver::f1_test, 0, 1, 60, 0, 1, 60);
     }
     void draw_f2()
     {
-        plot3d(&MainSolver::f2, 0, 1, 60, 0, 1, 60);
+        plot3d(&MainSolver::f2_test, 0, 1, 60, 0, 1, 60);
     }
-    void draw_f_approximate()
-    {
-        plot3d(&MainSolver::f_approximate, -1, -1, 0, 1, 60, 0, 1, 60);
-    }
-    double get_r_u()
-    {
-        double max = -1, d;
-        int nx3 = 3 * nx, ny3 = 3 * ny;
-        point p;
-        for (int i = 0; i < nx3; i++)
-        {
-            for (int j = 0; j < ny3; j++)
-            {
-                p.init((double)j / (nx3 - 1), (double)(ny3 - 1 - i) / (ny3 - 1));
-                d = fabs(u_exact(p) - u_approximate(p));
-                if (max < d)
-                {
-                    max = d;
-                }
-            }
-        }
-        return max;
-    }
-    double get_r_f()
+    // void draw_f_approximate()
+    // {
+    //     plot3d(&MainSolver::f_approximate, -1, -1, 0, 1, 60, 0, 1, 60);
+    // }
+    double get_residual(double (MainSolver::*f_exact)(point &p), double (MainSolver::*f_approximate)(point &p))
     {
         double max = -1, d;
         int nx3 = 3 * nx, ny3 = 3 * ny;
@@ -601,7 +644,7 @@ public:
             for (int j = 0; j < ny3; j++)
             {
                 p.init((double)j / (nx3 - 1), (double)(ny3 - 1 - i) / (ny3 - 1));
-                d = fabs(f2(p) - f_approximate(p));
+                d = fabs((this->*f_exact)(p) - (this->*f_approximate)(p));
                 if (max < d)
                 {
                     max = d;
@@ -610,11 +653,40 @@ public:
         }
         return max;
     }
-    double f(point &p);
+    // double get_r_f()
+    // {
+    //     double max = -1, d;
+    //     int nx3 = 3 * nx, ny3 = 3 * ny;
+    //     point p;
+    //     for (int i = 0; i < nx3; i++)
+    //     {
+    //         for (int j = 0; j < ny3; j++)
+    //         {
+    //             p.init((double)j / (nx3 - 1), (double)(ny3 - 1 - i) / (ny3 - 1));
+    //             d = fabs(f2_test(p) - f_approximate(p));
+    //             if (max < d)
+    //             {
+    //                 max = d;
+    //             }
+    //         }
+    //     }
+    //     return max;
+    // }
     double f1(point &p);
     double f2(point &p);
-    double f3(point &p);
     double u_exact(point &p);
+    double w_exact(point &p);
+    double p_exact(point &p);
+    double f1_test1(point &p);
+    double f2_test1(point &p);
+    double u_test1(point &p);
+    double w_test1(point &p);
+    double p_test1(point &p);
+
+    double f1_test(point &p);
+    double f2_test(point &p);
+    double f3_test(point &p);
+
     double u1_exact(point &p);
     double u2_exact(point &p);
     double u3_exact(point &p);
@@ -625,6 +697,24 @@ public:
         for (int k = 0; k < n; k++)
         {
             sum += x_u[k] * phi(p, k);
+        }
+        return sum;
+    }
+    double w_approximate(point &p)
+    {
+        double sum = 0;
+        for (int k = 0; k < n; k++)
+        {
+            sum += x_u[k + n] * phi(p, k);
+        }
+        return sum;
+    }
+    double p_approximate(point &p)
+    {
+        double sum = 0;
+        for (int k = 0; k < n_pressure_edges; k++)
+        {
+            sum += x_u[k + 2 * n] * psi(p, k);
         }
         return sum;
     }
