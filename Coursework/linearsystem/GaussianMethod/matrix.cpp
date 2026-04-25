@@ -632,7 +632,7 @@ gauss_status gauss_method(int n, int m, double *a, double *b, double *x, double 
       return gauss_status::NOT_APPLICABLE;
     }
     // print(a, n);
-//    printf("i0 = %d, j0 = %d\n", i0, j0);
+    // printf("i0 = %d, j0 = %d\n", i0, j0);
     swap(a, n, m, b, s, i0, j0);
     // print(a, n);
     // printf("\n");

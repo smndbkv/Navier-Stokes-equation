@@ -18,6 +18,8 @@ class MainSolver
 {
 public:
     int nx = 0, ny = 0, n = 0;
+    double hx = 0, hy = 0;
+
     int nx_pressure = 0, ny_pressure = 0, n_pressure_edges = 0;
     int size = 0;
     point *points = nullptr;
@@ -44,6 +46,8 @@ public:
         this->nx = nx;
         this->ny = ny;
         this->n = nx * ny;
+        hx = 1. / (nx - 1), hy = 1. / (ny - 1);
+
         nx_pressure = nx / 2 + 1;
         ny_pressure = ny / 2 + 1;
         n_pressure_edges = (nx_pressure - 1) * (ny_pressure - 1);
@@ -109,6 +113,7 @@ public:
     void draw_u_exact();
     void draw_u_approximate();
     void draw_psi(int k);
+    void visualizeFlow(double (MainSolver::*u)(point &p), double (MainSolver::*w)(point &p), double (MainSolver::*p)(point &p), int Np = 200, int Nvec = 20);
 
     edge linear_search(point &p)
     {
@@ -373,13 +378,14 @@ public:
             if (i == 0 || i == ny - 1 || j == 0 || j == nx - 1)
             {
                 matr[(k + n) * size + k + n] = matr[k * size + k] = 1;
-                b[k] = u0(points[k]);
+                b[k + n] = b[k] = 0;
             }
         }
         for (int k = 0; k < n_pressure_edges; k++)
         {
             for (int l = 0; l < n; l++)
             {
+
                 matr[(k + 2 * n) * size + l] = integral(&MainSolver::phi_x_psi, l, k);
                 matr[(k + 2 * n) * size + l + n] = integral(&MainSolver::phi_y_psi, l, k);
                 matr[l * size + (k + 2 * n)] = -matr[(k + 2 * n) * size + l];
@@ -389,15 +395,32 @@ public:
     }
     bool is_symmetric(double eps = EPS)
     {
-        for (int i = 0; i < size; ++i)
+        for (int i = 0; i < 2 * n; i++)
         {
-            for (int j = i + 1; j < size; ++j)
+            for (int j = i + 1; j < 2 * n; j++)
             {
                 double a_ij = matr[i * size + j];
                 double a_ji = matr[j * size + i];
                 if (std::fabs(a_ij - a_ji) > eps)
                 {
                     printf("matr[%d, %d] = %10.3e, matr[%d, %d] = %10.3e\n", i, j, a_ij, j, i, a_ji);
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+    bool is_skew_symmetric(double eps = EPS)
+    {
+        for (int i = 2 * n; i < size; i++)
+        {
+            for (int j = 0; j < size; j++)
+            {
+                double a_ij = matr[i * size + j];
+                double a_ji = -matr[j * size + i];
+                if (std::fabs(a_ij - a_ji) > eps)
+                {
+                    printf("matr[%d, %d] = %10.3e, matr[%d, %d] = %10.3e\n", i, j, a_ij, j, i, -a_ji);
                     return false;
                 }
             }
@@ -571,7 +594,22 @@ public:
             printf("\n");
         }
     }
-
+    void print_b()
+    {
+        for (int i = 0; i < size; i++)
+        {
+            printf(" %10.3e", b[i]);
+        }
+        printf("\n");
+    }
+    void print_x()
+    {
+        for (int i = 0; i < size; i++)
+        {
+            printf(" %10.3e", x_u[i]);
+        }
+        printf("\n");
+    }
     double f1_phi_k(point &p, int k, int)
     {
         return f1(p) * phi(p, k);
@@ -590,7 +628,14 @@ public:
         const int m = 60;
         double *c = new double[m * m], *g = new double[m * m],
                *d = new double[m * m], *f = new double[m * m];
-        int *p = new int[(n % m != 0 ? n / m + 1 : n / m)];
+        int p_size = n;
+        int *p = new int[p_size];
+        memset(c, 0, m * m * sizeof(double));
+        memset(g, 0, m * m * sizeof(double));
+        memset(d, 0, m * m * sizeof(double));
+        memset(f, 0, m * m * sizeof(double));
+        memset(p, 0, p_size * sizeof(int));
+
         gauss_method(size, m, matr, b, x_u, c, g, d, f, p);
         delete[] c;
         delete[] g;
@@ -634,7 +679,7 @@ public:
     // {
     //     plot3d(&MainSolver::f_approximate, -1, -1, 0, 1, 60, 0, 1, 60);
     // }
-    double get_residual(double (MainSolver::*f_exact)(point &p), double (MainSolver::*f_approximate)(point &p))
+    double get_residual_c(double (MainSolver::*f_exact)(point &p), double (MainSolver::*f_approximate)(point &p))
     {
         double max = -1, d;
         int nx3 = 3 * nx, ny3 = 3 * ny;
@@ -652,6 +697,22 @@ public:
             }
         }
         return max;
+    }
+    double get_residual_l1(double (MainSolver::*f_exact)(point &p), double (MainSolver::*f_approximate)(point &p))
+    {
+        double sum = 0;
+        int nx3 = 3 * nx, ny3 = 3 * ny;
+        double hx3 = 1. / (nx3 - 1), hy3 = 1. / (ny3 - 1);
+        point p;
+        for (int i = 0; i < nx3; i++)
+        {
+            for (int j = 0; j < ny3; j++)
+            {
+                p.init((double)j / (nx3 - 1), (double)(ny3 - 1 - i) / (ny3 - 1));
+                sum += fabs((this->*f_exact)(p) - (this->*f_approximate)(p)) * hx3 * hy3;
+            }
+        }
+        return sum;
     }
     // double get_r_f()
     // {
@@ -677,11 +738,22 @@ public:
     double u_exact(point &p);
     double w_exact(point &p);
     double p_exact(point &p);
+    double f1_test0(point &p);
+    double f2_test0(point &p);
+    double u_test0(point &p);
+    double w_test0(point &p);
+    double p_test0(point &p);
     double f1_test1(point &p);
     double f2_test1(point &p);
     double u_test1(point &p);
     double w_test1(point &p);
     double p_test1(point &p);
+    double f1_test2(point &p);
+    double f2_test2(point &p);
+    double u_test2(point &p);
+    double w_test2(point &p);
+    double p_test2(point &p);
+    double p_test2_(point &p);
 
     double f1_test(point &p);
     double f2_test(point &p);
@@ -718,7 +790,18 @@ public:
         }
         return sum;
     }
-
+    double err_u(point &p)
+    {
+        return u_exact(p) - u_approximate(p);
+    }
+    double err_w(point &p)
+    {
+        return w_exact(p) - w_approximate(p);
+    }
+    double err_p(point &p)
+    {
+        return p_exact(p) - p_approximate(p);
+    }
     double u0(point &p);
 };
 

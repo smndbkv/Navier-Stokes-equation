@@ -1,4 +1,10 @@
+#include <iostream>
+#include <fstream>
+#include <cmath>
+#include <cstdlib>
+
 #include "MainSolver.h"
+
 void MainSolver::draw_grid_velocity()
 {
     for (int i = 0; i < ny - 1; i++)
@@ -192,4 +198,76 @@ void MainSolver::draw_u_approximate()
 void MainSolver::draw_psi(int k)
 {
     plot3d(&MainSolver::psi, k, k, 0, 1, 60, 0, 1, 60);
+}
+void MainSolver::visualizeFlow(double (MainSolver::*u)(point &p), double (MainSolver::*w)(point &p), double (MainSolver::*p)(point &p), int Np, int Nvec)
+{
+    // vectors per dimension
+    const char *pFile = "p_matrix.dat";
+    const char *vecFile = "vec_field.dat";
+    const char *gpScript = "plot_flow.gp";
+
+    // 1. Pressure field (matrix format for gnuplot "with image")
+    std::ofstream fout(pFile);
+    if (!fout)
+    {
+        std::cerr << "Cannot write " << pFile << std::endl;
+        return;
+    }
+    for (int iy = 0; iy < Np; ++iy)
+    {
+        double y = iy / double(Np - 1);
+        for (int ix = 0; ix < Np; ++ix)
+        {
+            double x = ix / double(Np - 1);
+            point pnt(x, y);
+            fout << (this->*p)(pnt) << " ";
+        }
+        fout << std::endl;
+    }
+    fout.close();
+
+    // 2. Velocity vector field (points + components)
+    fout.open(vecFile);
+    if (!fout)
+    {
+        std::cerr << "Cannot write " << vecFile << std::endl;
+        return;
+    }
+    for (int iy = 0; iy < Nvec; ++iy)
+    {
+        double y = iy / double(Nvec - 1);
+        for (int ix = 0; ix < Nvec; ++ix)
+        {
+            double x = ix / double(Nvec - 1);
+            point pnt(x, y);
+
+            fout << x << " " << y << " " << (this->*u)(pnt) << " " << (this->*w)(pnt) << std::endl;
+        }
+        fout << std::endl; // blank line between rows (optional)
+    }
+    fout.close();
+
+    // 3. Gnuplot script
+    std::ofstream gp(gpScript);
+    if (!gp)
+    {
+        std::cerr << "Cannot write " << gpScript << std::endl;
+        return;
+    }
+    gp << "set terminal wxt size 900,700 enhanced\n"
+       << "set title \"Velocity field (arrows) coloured by pressure p\"\n"
+       << "set xlabel 'x'\nset ylabel 'y'\n"
+       << "set xrange [0:1]\nset yrange [0:1]\nset size ratio -1\n"
+       << "set palette defined (0 'blue', 0.5 'cyan', 1 'red')\n"
+       << "set cblabel 'Pressure p'\n"
+       << "plot '" << pFile << "' matrix using ($1/" << Np - 1
+       << "):($2/" << Np - 1 << "):3 with image notitle, \\\n"
+       << "     '" << vecFile << "' using 1:2:3:4 with vectors head filled lc 'black' scale 0.15 notitle\n"
+       << "pause mouse close\n";
+    gp.close();
+
+    // 4. Run gnuplot
+    std::string cmd = "gnuplot -persist " + std::string(gpScript);
+    if (std::system(cmd.c_str()) != 0)
+        std::cerr << "Error running gnuplot. Is it installed?\n";
 }

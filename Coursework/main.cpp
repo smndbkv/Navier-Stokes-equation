@@ -43,22 +43,36 @@ int main(int argc, char **argv)
     {
         printf("Matrix is not symmetric!\n");
     }
-    // // Solver.print_matr();
+    st = Solver.is_skew_symmetric(1e-15);
+    if (st == false)
+    {
+        printf("Matrix is not skew-symmetric!\n");
+    }
+    // Solver.print_matr();
     t1 = (clock() - t1) / CLOCKS_PER_SEC;
 
     t2 = clock();
     Solver.solve_linear_system();
     t2 = (clock() - t2) / CLOCKS_PER_SEC;
     // // Solver.draw_u_approximate();
+    // Solver.print_x();
 
     t3 = clock();
-    double r_u = Solver.get_residual(&MainSolver::u_exact, &MainSolver::u_approximate);
-    double r_w = Solver.get_residual(&MainSolver::w_exact, &MainSolver::w_approximate);
-    double r_p = Solver.get_residual(&MainSolver::p_exact, &MainSolver::p_approximate);
-
+    double r_u_c = Solver.get_residual_c(&MainSolver::u_exact, &MainSolver::u_approximate);
+    double r_w_c = Solver.get_residual_c(&MainSolver::w_exact, &MainSolver::w_approximate);
+    double r_p_c = Solver.get_residual_c(&MainSolver::p_exact, &MainSolver::p_approximate);
+    double r_u_l1 = Solver.get_residual_l1(&MainSolver::u_exact, &MainSolver::u_approximate);
+    double r_w_l1 = Solver.get_residual_l1(&MainSolver::w_exact, &MainSolver::w_approximate);
+    double r_p_l1 = Solver.get_residual_l1(&MainSolver::p_exact, &MainSolver::p_approximate);
     t3 = (clock() - t3) / CLOCKS_PER_SEC;
 
-    printf("r_u = %10.3e, r_w = %10.3e, r_p = %10.3e, t1 = %lf, t2 = %lf, t3 = %lf\n", r_u, r_w, r_p, t1, t2, t3);
+    printf("C[0,1]^2 : r_u = %10.3e, r_w = %10.3e, r_p = %10.3e,\nL_1[0,1]^2 : r_u = %10.3e, r_w = %10.3e, r_p = %10.3e,\nt1 = %lf, t2 = %lf, t3 = %lf\n",
+           r_u_c, r_w_c, r_p_c, r_u_l1, r_w_l1, r_p_l1, t1, t2, t3);
+
+    Solver.visualizeFlow(&MainSolver::u_exact, &MainSolver::w_exact, &MainSolver::p_exact);
+    Solver.visualizeFlow(&MainSolver::u_approximate, &MainSolver::w_approximate, &MainSolver::p_approximate);
+
+    Solver.visualizeFlow(&MainSolver::err_u, &MainSolver::err_w, &MainSolver::err_p);
 
     // G.draw_u2();
     // t1 = clock();
